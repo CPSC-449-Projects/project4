@@ -1,0 +1,5 @@
+service_registry: gunicorn --access-logfile - --capture-output service_registry:__hug_wsgi__
+user_services: gunicorn --access-logfile - --capture-output user_services:__hug_wsgi__
+timelines_services: gunicorn --access-logfile - --capture-output timelines_services:__hug_wsgi__
+like_service: gunicorn --access-logfile - --capture-output like_service:__hug_wsgi__
+poll_services: gunicorn --access-logfile - --capture-output poll_services:__hug_wsgi__

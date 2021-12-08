@@ -1,0 +1,10 @@
+{
+  "poll_id": 1,
+  "created_by": "vinhtran",
+  "question": "Which OS are you using?",
+  "poll_responses": [
+      "MacOS",
+      "Windows",
+      "Linux"
+  ]
+}
