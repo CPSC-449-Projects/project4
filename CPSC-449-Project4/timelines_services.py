@@ -11,6 +11,8 @@ import logging.config
 import requests
 import os
 import socket
+import greenstalk
+import json
 
 
 # Load configuration
@@ -124,6 +126,10 @@ def retrieveHomeTimeline(response, username: hug.types.text, info: hug.directive
 ''' Design the service of allowing an existing user to post a message '''
 @hug.post("/message/", requires=authentication)
 def postMessage(response, username: hug.directives.user, text: hug.types.text, db: sqlite):
+    if username == 502:
+        response.status = hug.falcon.HTTP_502
+        return {'error': '502 Bad Gateway'}
+
     posts = db["post"]
 
     post = {
@@ -141,6 +147,21 @@ def postMessage(response, username: hug.directives.user, text: hug.types.text, d
 
     response.set_header("Location", f"/posts/{post['id']}")
     return post
+
+@hug.post("/message/asyn/", requires=authentication, status=hug.falcon.HTTP_202)
+def asynPostMessage(response, username: hug.directives.user, text: hug.types.text):
+    if username == 502:
+        response.status = hug.falcon.HTTP_502
+        return {'error': '502 Bad Gateway'}
+        
+    client = greenstalk.Client(('127.0.0.1', 11300))
+    post = {
+        "username": username,
+        "text": text,
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    post = json.dumps(post)
+    client.put(post)
 
 ''' Design the service of retrieving a specific post based on its ID '''
 @hug.get("/posts/{id}")
