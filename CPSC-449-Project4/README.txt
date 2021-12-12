@@ -21,7 +21,7 @@ services that require users to log in before using.
 will have a username, a bio, an email address, and a password. Each post that a user creates will have an id, the author's
 username, the text (content) of the post, and a timestamp.
 
-- There are three new microservices added in this project, one for 'like', one for 'poll', and one for 'service_registry'.
+- There are three new microservices added in Project 3, one for 'like', one for 'poll', and one for 'service_registry'.
 By using the 'like' services, users can like posts, view number of likes of a specfic post, get the list of posts that they
 like, and see the top 5 popular posts that were liked by users. By using the 'poll' services, users can create a poll, vote a
 specific poll once, and view the result of polls even though they do not vote. With the 'service_registry', each service instance
@@ -36,6 +36,16 @@ retreiving a list of posts in order. For all new creations of polls, they will b
 Local". Each poll created will have an id as a primary key, an author, a question, at least 2 responses and at most 4 responses,
 a 'voted_users' attribute that stores the information about voted users' username, and a 'voted_counts' attribute that stores the
 number of votes corresponding to each choice of a poll.
+
+- There are new features and creations such as asynchronous posting, a performance test, worker programs in Python, and email notifications to users added in this project.
+
++ Firstly, asynchronous posting is a feature that allows users to post a message asynchronously, so it will increase the availability of the service and minimize the dependency of the database as running the service synchronously does if the traffic spikes suddenly, be not steady or over the limits that the server can handle. The feature was implemented by using Beanstalk and Greenstalk Python client library as a work queueing service.
+
++ Secondly, by using command-line tool "hey", a performance test in this project is to compare the performance of running the posts service synchronously and asynchronously.
+
++ Thirdly, there are three separate worker programs in Python implemented to do the assigned task. The 1st worker's task is to pull the job containing the content of the post which a user is attempting to post a message asynchronously from the queue and insert it to the database. The 2nd worker's task is to verify the URL of the post that a user is attempting to like. The 3rd worker's task is to verify the link to the poll from the text of a tweet.
+
++ Finally, both 2nd and 3rd workers are able to remove the offending resource if they detect a like for an invalid post or a reference to an invalid poll and send the user an email to notify.
 
 - For production deployment, Gunicorn is used in this project as a WSGI server to run microservices, and the program was designed
 to handle the running of multiple instances of the 'timeline' service by using HAProxy as an load balancer.
@@ -172,11 +182,18 @@ To use the service through the terminal, please command: $ http --auth username:
 
 6. @hug.post("/message/", requires=authentication)
 
-- This service allows an existing user to post messages, but they need to get the authorization to do so by logging in and then input the text for the post. If authenticated successfully and inputted correctly, the response status is '201 Created', and the post will be returned as a JSON format. Otherwise, the response status is either '401 Unauthorized' due to the failure of login or '400 Bad Request' if the input is incorrect or missing.
+- This service allows an existing user to post messages, but they need to get the authorization to do so by logging in and then input the text for the post. If authenticated successfully and inputted correctly, the response status is '201 Created', and the post will be returned as a JSON format. Otherwise, the response status is either '401 Unauthorized' due to the failure of login or '400 Bad Request' if the input is incorrect or missing. If the users service is not available for checking the validation of a user, the response status is '502 Bad Gateway'.
+
 
 To use the service through the terminal, please command: $ http --auth username:password POST 127.0.0.1/message/ text="{The text of the post}"
 
-7. @hug.get("/health-check/")
+7. @.hug.post("/message/asyn", requires=authentication, status=hug.falcon.HTTP_202)
+
+- This service allows an existing user to post messages asynchronously, but they need to get the authorization to do so by logging in and then input the text for the post. If authenticated successfully and inputted correctly, the response status is '202 Accepted'. It means the post is put into the queue, and it will not be updated into the database at this time but later by a specific worker who will pull the post from the queue and insert it into the database. Otherwise, the response status is either '401 Unauthorized' due to the failure of login or '400 Bad Request' if the input is incorrect or missing. If the users service is not available for checking the validation of a user, the response status is '502 Bad Gateway'.
+
+To use the service through the terminal, please command: $ http --auth username:password POST 127.0.0.1/message/asyn text="{The text of the post}"
+
+8. @hug.get("/health-check/")
 
 - This service is to support the health check for checking if its instances are still working. It will be called by the registry service.
 
@@ -389,6 +406,8 @@ In the terminal, please command: $ http POST 127.0.0.1:5400/polls/create/ poll_i
    7. Redis
    8. Python libraries for Redis
    9. Boto3 library
+   10. Beanstalk and Greenstalk Python client library
+   11. Command-line tool "hey"
 
 ----------------------------------------------------------------------------------------------------
 
@@ -447,6 +466,10 @@ In the terminal, please command: $ http POST 127.0.0.1:5400/polls/create/ poll_i
    13.6. following.csv
    13.7. posts.csv
    13.8. users.csv
+   
+14. worker1&3.py			// Containing the source code that executes the task of the 1st and 3rd worker
+
+15. worker2.py				// Containing the source code that executes the task of the 2nd worker
 
 ----------------------------------------------------------------------------------------------------
 
@@ -486,11 +509,21 @@ $ sudo apt install --yes python3-hiredis
 
 $ sudo apt install --yes python3-boto3
 
-8. To install the AWS CLI to prepare for running aws configure, command on another terminal:
+8. To install Beanstalkd and Greenstalkd Python client library, command:
+
+$ sudo apt install --yes beanstalkd
+
+$ python3 -m pip install greenstalk
+
+9. To install command-line tool "hey", command:
+
+$ sudo apt install --yes hey
+
+9. To install the AWS CLI to prepare for running aws configure, command on another terminal:
 
 $ sudo apt install --yes awscli
 
-9. Assume that you downloaded, extracted, and moved the contents of Amazon Dynamodb to a location of your choice (if not, please see 'REQUIREMENTS' section to download), to run Amazon Dynamodb locally, change the current directory to the one that contains "DynamoDB.jar", and command:
+10. Assume that you downloaded, extracted, and moved the contents of Amazon Dynamodb to a location of your choice (if not, please see 'REQUIREMENTS' section to download), to run Amazon Dynamodb locally, change the current directory to the one that contains "DynamoDB.jar", and command:
 
 $ java -Djava.library.path=./DynamoDBLocal_lib -jar DynamoDBLocal.jar -sharedDb
 
@@ -504,7 +537,7 @@ SharedDb:	true
 shouldDelayTransientStatuses:	false
 CorsParams:	*
 
-10. To run aws configure, command and input on another terminal:
+11. To run aws configure, command and input on another terminal:
 
 $ aws configure
 AWS Access Key ID [None]: fakeMyKeyId
@@ -512,7 +545,7 @@ AWS Secret Access Key [None]: fakeSecretAccessKey
 Default region name [None]: us-west-2
 Default output format [None]: table
 
-11. To create 'polls' table for the 'poll' service stored in Dynamodb, command:
+12. To create 'polls' table for the 'poll' service stored in Dynamodb, command:
 
 $ python3 create_polls_table.py
 
@@ -520,11 +553,13 @@ Expected Output:
 
 Table status: ACTIVE
 
-12. To load the database for the 'users' and 'posts' services, command:
+13. To load the database for the 'users' and 'posts' services, command:
 
 $ ./bin/init.sh
 
-13. Please replace the content of 'haproxy.cfg' file in your system with the content of 'haproxy.cfg' in the "etc" folder.
+14. Please replace the content of 'haproxy.cfg' file in your system with the content of 'haproxy.cfg' in the "etc" folder.
+
+----------------------------------------------------------------------------------------------------
 
 ### HOW TO START THE SERVICES ###
 
@@ -538,6 +573,29 @@ $ sudo systemctl start haproxy
 
 3. To start microservices concurrently, command on the terminal:
 
-$ foreman start --formation service_registry=1,user_services=1,timelines_services=3,like_service=1,poll_services=1
+$ foreman start --formation service_registry=1,user_services=1,timelines_services=3,like_service=1,poll_services=1,worker1&3=1,debugging_mail_server=1
 
 4. To begin using the services, please open another terminal and read 'MICROSERVICES - DETAILED DESCRIPTIONS' section for more detail.
+
+----------------------------------------------------------------------------------------------------
+
+### PERFORMANCE TEST ###
+
+- To do the perforamance test for comparing between synchronous and asynchronous runs of the posts service by using command-line tool "hey", please command on the terminal:
+
+# Check the performance of the synchronous run of the posts service
+
+$ hey -n 1 -c 1 -m POST -H "Authorization: Basic $(echo -n username:password | base64)" -d '{"text":"bruh"}' -T "application/json" "http://127.0.0.1/message"
+
+Example: $ hey -n 1 -c 1 -m POST -H "Authorization: Basic $(echo -n vinhtra:cry | base64)" -d '{"text":"bruh"}' -T "application/json" "http://127.0.0.1/message"
+
+On another terminal, please command:
+
+# Check the performance of the asynchronous run of the posts service
+
+$ hey -n 1 -c 1 -m POST -H "Authorization: Basic $(echo -n username:password | base64)" -d '{"text":"bruh"}' -T "application/json" "http://127.0.0.1/message/asyn"
+
+Example: $ hey -n 1 -c 1 -m POST -H "Authorization: Basic $(echo -n vinhtra:cry | base64)" -d '{"text":"bruh"}' -T "application/json" "http://127.0.0.1/message/asyn"
+
+- By doing so, you may notice that the performance of the asynchronous run is a little higher than the synchronous one.
+

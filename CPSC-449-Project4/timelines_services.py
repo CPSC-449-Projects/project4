@@ -13,6 +13,7 @@ import os
 import socket
 import greenstalk
 import json
+import re
 
 
 # Load configuration
@@ -153,7 +154,7 @@ def asynPostMessage(response, username: hug.directives.user, text: hug.types.tex
     if username == 502:
         response.status = hug.falcon.HTTP_502
         return {'error': '502 Bad Gateway'}
-        
+
     client = greenstalk.Client(('127.0.0.1', 11300))
     post = {
         "username": username,
@@ -162,6 +163,7 @@ def asynPostMessage(response, username: hug.directives.user, text: hug.types.tex
     }
     post = json.dumps(post)
     client.put(post)
+
 
 ''' Design the service of retrieving a specific post based on its ID '''
 @hug.get("/posts/{id}")
@@ -172,7 +174,7 @@ def retrieve_post(response, id: hug.types.number, db:sqlite):
         posts.append(post)
     except sqlite_utils.db.NotFoundError:
         response.status = hug.falcon.HTTP_404
-    # return {"posts": posts}
+    return {"posts": posts}
 
 ######## Health check ########
 @hug.get("/health-check/")
